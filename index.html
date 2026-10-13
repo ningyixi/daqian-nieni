@@ -267,6 +267,30 @@
     letter-spacing: 0.08em;
     margin-bottom: 1rem;
   }
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: max(88px, calc(env(safe-area-inset-bottom) + 72px));
+    transform: translateX(-50%) translateY(12px);
+    z-index: 30;
+    max-width: min(86vw, 320px);
+    padding: 0.65rem 1.1rem;
+    border-radius: 999px;
+    background: rgba(74, 53, 64, 0.88);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 </style>
 <script type="importmap">
 {
@@ -282,9 +306,9 @@
 <div id="screen-start" class="screen">
   <div class="shop-badge">捏捏小店 · 在线试捏</div>
   <div class="logo">大前捏捏</div>
-  <div class="subtitle">像真店里一样 · 捏了才知道手感</div>
+  <div class="subtitle">按哪儿凹哪儿 · 手感捏了才知道</div>
   <button class="btn" id="btn-start" type="button">进店看看</button>
-  <p class="hint">慢回弹蜜桃 · 猫爪 · 麻薯 · 水球<br>外表看得见，手感捏了才知道</p>
+  <p class="hint">慢回弹蜜桃 · 猫爪 · 麻薯 · 水球<br>局部按压，像真捏捏乐一样</p>
 </div>
 
 <div id="screen-count" class="screen hidden">
@@ -315,12 +339,14 @@
     <button class="tiny-btn" id="btn-exit" type="button">离开</button>
   </div>
   <div id="play-footer">
-    <div id="play-hint">拖着转 · 按住捏 · 松手看回弹</div>
+    <div id="play-hint">点按局部凹下去 · 拖动旋转 · 重置复原</div>
     <button class="tiny-btn" id="btn-reset" type="button">重置</button>
     <button class="tiny-btn" id="btn-swap" type="button">换一个</button>
     <button class="tiny-btn" id="btn-recount" type="button">再选数量</button>
   </div>
 </div>
+
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -329,62 +355,94 @@ import * as THREE from 'three';
 const FEELS = {
   slowrise: {
     label: '慢回弹 · 记忆棉',
-    pressSpeed: 2.2,
-    releaseEase: 0.018,
-    maxSquash: 0.55,
-    wobble: 0.08,
-    dentHold: 0.35,
+    toast: '慢回弹：坑会慢慢鼓回来',
+    pressRate: 1.6,
+    recovery: 0.14,
+    maxDepth: 0.38,
+    dentRadius: 0.32,
+    resistance: 1.0,
+    wobble: 0.06,
   },
   jelly_fast: {
     label: '麻薯弹 · 快回弹',
-    pressSpeed: 4.5,
-    releaseEase: 0.22,
-    maxSquash: 0.42,
+    toast: '麻薯弹：松手就弹回来',
+    pressRate: 2.8,
+    recovery: 2.2,
+    maxDepth: 0.28,
+    dentRadius: 0.26,
+    resistance: 0.85,
     wobble: 0.35,
-    dentHold: 0,
   },
   mush_clay: {
-    label: '烂泥软 · 久压不弹',
-    pressSpeed: 1.8,
-    releaseEase: 0.008,
-    maxSquash: 0.62,
-    wobble: 0.04,
-    dentHold: 0.55,
+    label: '泥感 · 按哪儿留哪儿',
+    toast: '泥感：坑会留着',
+    pressRate: 2.0,
+    recovery: 0,
+    maxDepth: 0.42,
+    dentRadius: 0.28,
+    resistance: 0.9,
+    wobble: 0.02,
   },
   waterball_clear: {
-    label: '水球 · 弹得很开',
-    pressSpeed: 5.0,
-    releaseEase: 0.28,
-    maxSquash: 0.5,
-    wobble: 0.55,
-    dentHold: 0,
+    label: '水感 · 弹得很开',
+    toast: '水球感：弹性十足',
+    pressRate: 3.2,
+    recovery: 2.8,
+    maxDepth: 0.32,
+    dentRadius: 0.3,
+    resistance: 0.75,
+    wobble: 0.5,
   },
   flock_peach: {
     label: '桃皮绒 · 中慢回弹',
-    pressSpeed: 2.0,
-    releaseEase: 0.035,
-    maxSquash: 0.58,
-    wobble: 0.1,
-    dentHold: 0.25,
+    toast: '桃皮绒：软软鼓回来',
+    pressRate: 1.7,
+    recovery: 0.28,
+    maxDepth: 0.36,
+    dentRadius: 0.3,
+    resistance: 1.05,
+    wobble: 0.08,
   },
   maltose: {
     label: '麦芽糖 · 黏黏慢回',
-    pressSpeed: 1.5,
-    releaseEase: 0.012,
-    maxSquash: 0.68,
-    wobble: 0.12,
-    dentHold: 0.4,
+    toast: '麦芽糖：黏黏慢慢回',
+    pressRate: 1.4,
+    recovery: 0.09,
+    maxDepth: 0.45,
+    dentRadius: 0.34,
+    resistance: 1.15,
+    wobble: 0.1,
+  },
+  cream: {
+    label: '奶油感 · 深陷慢起',
+    toast: '奶油感：按得深，起得慢',
+    pressRate: 2.4,
+    recovery: 0.2,
+    maxDepth: 0.48,
+    dentRadius: 0.33,
+    resistance: 0.8,
+    wobble: 0.05,
+  },
+  cement: {
+    label: '水泥感 · 沉沉回弹',
+    toast: '水泥感：有点硬，慢慢回',
+    pressRate: 1.1,
+    recovery: 0.55,
+    maxDepth: 0.22,
+    dentRadius: 0.22,
+    resistance: 1.6,
+    wobble: 0.04,
   },
 };
 
-/* ========== Product catalog (≥10 shop-like items) ========== */
+/* ========== Product catalog ========== */
 const PRODUCTS = [
   {
     id: 'peach',
     name: '水蜜桃',
     emoji: '🍑',
     tag: '慢回弹食物',
-    feelPool: ['flock_peach', 'slowrise'],
+    feelPool: ['flock_peach', 'slowrise', 'cream'],
     build: buildPeach,
   },
   {
@@ -400,7 +458,7 @@ const PRODUCTS = [
     name: '草莓蛋糕',
     emoji: '🍰',
     tag: '慢回弹食物',
-    feelPool: ['slowrise', 'mush_clay'],
+    feelPool: ['cream', 'slowrise', 'mush_clay'],
     build: buildCake,
   },
   {
@@ -408,7 +466,7 @@ const PRODUCTS = [
     name: '吐司片',
     emoji: '🍞',
     tag: '慢回弹食物',
-    feelPool: ['slowrise', 'flock_peach'],
+    feelPool: ['slowrise', 'flock_peach', 'cement'],
     build: buildToast,
   },
   {
@@ -416,7 +474,7 @@ const PRODUCTS = [
     name: '西瓜角',
     emoji: '🍉',
     tag: '慢回弹食物',
-    feelPool: ['slowrise', 'jelly_fast'],
+    feelPool: ['slowrise', 'jelly_fast', 'cream'],
     build: buildWatermelon,
   },
   {
@@ -424,7 +482,7 @@ const PRODUCTS = [
     name: '猫爪爪',
     emoji: '🐾',
     tag: '店里人气款',
-    feelPool: ['mush_clay', 'jelly_fast', 'waterball_clear'],
+    feelPool: ['mush_clay', 'jelly_fast', 'waterball_clear', 'cream'],
     build: buildCatPaw,
   },
   {
@@ -440,7 +498,7 @@ const PRODUCTS = [
     name: '小熊麻薯',
     emoji: '🐻',
     tag: '麻薯动物',
-    feelPool: ['jelly_fast', 'mush_clay'],
+    feelPool: ['jelly_fast', 'mush_clay', 'cream'],
     build: buildBear,
   },
   {
@@ -456,7 +514,7 @@ const PRODUCTS = [
     name: '麦芽糖包',
     emoji: '🍡',
     tag: '黏黏系',
-    feelPool: ['maltose', 'mush_clay'],
+    feelPool: ['maltose', 'mush_clay', 'cream'],
     build: buildMaltoseBun,
   },
   {
@@ -464,7 +522,7 @@ const PRODUCTS = [
     name: '闪粉冰块',
     emoji: '🧊',
     tag: '半透明',
-    feelPool: ['jelly_fast', 'waterball_clear'],
+    feelPool: ['jelly_fast', 'waterball_clear', 'cement'],
     build: buildIceCube,
   },
   {
@@ -524,14 +582,45 @@ function faceDots(group, y, z, spread, color = 0x2a1a20) {
   group.add(nose);
 }
 
-/* ========== Builders ========== */
+function markDeformable(mesh) {
+  if (!mesh || !mesh.geometry) return mesh;
+  const geo = mesh.geometry;
+  if (!geo.attributes.position) return mesh;
+  geo.computeVertexNormals();
+  const pos = geo.attributes.position;
+  const base = new Float32Array(pos.array.length);
+  base.set(pos.array);
+  const normals = geo.attributes.normal
+    ? new Float32Array(geo.attributes.normal.array)
+    : null;
+  const count = pos.count;
+  const dents = new Float32Array(count);
+  const center = new THREE.Vector3();
+  const box = new THREE.Box3().setFromBufferAttribute(pos);
+  box.getCenter(center);
+  mesh.userData.deform = {
+    base,
+    normals,
+    dents,
+    center,
+    dirty: false,
+  };
+  return mesh;
+}
+
+function markMany(meshes) {
+  meshes.forEach(markDeformable);
+  return meshes;
+}
+
+/* ========== Builders (higher subdivision for local dents) ========== */
 function buildPeach() {
   const g = new THREE.Group();
   const bodyMat = mat(0xffb3c6, { roughness: 0.85 });
-  const left = new THREE.Mesh(new THREE.SphereGeometry(0.72, 28, 28), bodyMat);
+  const left = new THREE.Mesh(new THREE.SphereGeometry(0.72, 48, 48), bodyMat);
   left.position.x = -0.22;
   left.scale.set(0.95, 1.0, 0.92);
-  const right = new THREE.Mesh(new THREE.SphereGeometry(0.7, 28, 28), bodyMat.clone());
+  const right = new THREE.Mesh(new THREE.SphereGeometry(0.7, 48, 48), bodyMat.clone());
   right.position.x = 0.28;
   right.scale.set(0.9, 0.95, 0.88);
   g.add(left, right);
@@ -543,7 +632,7 @@ function buildPeach() {
   crease.rotation.z = 0.08;
   g.add(crease);
   const leaf = new THREE.Mesh(
-    new THREE.SphereGeometry(0.28, 12, 12),
+    new THREE.SphereGeometry(0.28, 16, 16),
     mat(0x7cb342, { roughness: 0.7 })
   );
   leaf.scale.set(1.4, 0.25, 0.7);
@@ -557,7 +646,7 @@ function buildPeach() {
   stem.position.set(0.05, 0.95, 0);
   stem.rotation.z = 0.15;
   g.add(stem);
-  g.userData.mainMeshes = [left, right];
+  g.userData.mainMeshes = markMany([left, right]);
   return g;
 }
 
@@ -566,86 +655,86 @@ function buildBanana() {
   const bananaMat = mat(0xffe066, { roughness: 0.65 });
   const curve = new THREE.Group();
   const segs = 8;
+  const mains = [];
   for (let i = 0; i < segs; i++) {
     const t = i / (segs - 1);
     const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.28 - t * 0.06, 16, 16),
+      new THREE.SphereGeometry(0.28 - t * 0.06, 28, 28),
       bananaMat
     );
     const ang = -0.55 + t * 1.3;
     mesh.position.set(Math.sin(ang) * 0.55, (t - 0.5) * 1.5, Math.cos(ang) * 0.15);
     mesh.scale.set(1.1, 1.3, 0.95);
     curve.add(mesh);
+    mains.push(mesh);
   }
   g.add(curve);
   const tip = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 10, 10),
+    new THREE.SphereGeometry(0.12, 12, 12),
     mat(0x5d4037, { roughness: 0.7 })
   );
   tip.position.set(Math.sin(0.75) * 0.55, 0.78, Math.cos(0.75) * 0.15);
   g.add(tip);
-  g.userData.mainMeshes = curve.children;
+  g.userData.mainMeshes = markMany(mains);
   return g;
 }
 
 function buildCake() {
   const g = new THREE.Group();
   const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.7, 0.75, 0.35, 24, 1, false, 0, Math.PI * 1.15),
+    new THREE.CylinderGeometry(0.7, 0.75, 0.35, 48, 8, false, 0, Math.PI * 1.15),
     mat(0xffe0b2, { roughness: 0.7 })
   );
   base.position.y = -0.15;
   g.add(base);
   const frosting = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.72, 0.7, 0.22, 24, 1, false, 0, Math.PI * 1.15),
+    new THREE.CylinderGeometry(0.72, 0.7, 0.22, 48, 6, false, 0, Math.PI * 1.15),
     mat(0xffc0cb, { roughness: 0.55 })
   );
   frosting.position.y = 0.12;
   g.add(frosting);
   const cream = new THREE.Mesh(
-    new THREE.SphereGeometry(0.18, 12, 12),
+    new THREE.SphereGeometry(0.18, 20, 20),
     mat(0xfff8f0, { roughness: 0.5 })
   );
   cream.position.set(0.15, 0.35, 0.25);
   g.add(cream);
   const berry = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 12, 12),
+    new THREE.SphereGeometry(0.12, 16, 16),
     mat(0xe53935, { roughness: 0.4 })
   );
   berry.position.set(0.15, 0.48, 0.25);
   g.add(berry);
   const side = new THREE.Mesh(
-    new THREE.BoxGeometry(0.02, 0.55, 0.75),
+    new THREE.BoxGeometry(0.02, 0.55, 0.75, 1, 8, 8),
     mat(0xffecb3, { roughness: 0.75 })
   );
   side.position.set(0.35, -0.02, 0);
   side.rotation.y = -0.3;
   g.add(side);
-  g.userData.mainMeshes = [base, frosting];
+  g.userData.mainMeshes = markMany([base, frosting, cream]);
   return g;
 }
 
 function buildToast() {
   const g = new THREE.Group();
   const bread = new THREE.Mesh(
-    new THREE.BoxGeometry(1.2, 1.15, 0.28, 4, 4, 2),
+    new THREE.BoxGeometry(1.2, 1.15, 0.28, 18, 18, 6),
     mat(0xffe0a0, { roughness: 0.8 })
   );
   g.add(bread);
   const crust = new THREE.Mesh(
-    new THREE.BoxGeometry(1.28, 1.22, 0.22),
+    new THREE.BoxGeometry(1.28, 1.22, 0.22, 14, 14, 4),
     mat(0xd4a017, { roughness: 0.75 })
   );
   crust.position.z = -0.02;
   g.add(crust);
-  // bite notch via smaller darker patch
   const bite = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 12, 12),
+    new THREE.SphereGeometry(0.22, 16, 16),
     mat(0xffecb3, { roughness: 0.85 })
   );
   bite.position.set(0.55, 0.5, 0.08);
   g.add(bite);
-  const holes = [];
   for (let i = 0; i < 6; i++) {
     const h = new THREE.Mesh(
       new THREE.SphereGeometry(0.05, 8, 8),
@@ -653,23 +742,22 @@ function buildToast() {
     );
     h.position.set(-0.35 + (i % 3) * 0.3, -0.25 + Math.floor(i / 3) * 0.35, 0.15);
     g.add(h);
-    holes.push(h);
   }
-  g.userData.mainMeshes = [bread, crust];
+  g.userData.mainMeshes = markMany([bread, crust]);
   return g;
 }
 
 function buildWatermelon() {
   const g = new THREE.Group();
   const wedge = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.9, 0.9, 0.35, 24, 1, false, 0, Math.PI * 0.55),
+    new THREE.CylinderGeometry(0.9, 0.9, 0.35, 48, 8, false, 0, Math.PI * 0.55),
     mat(0xff6b81, { roughness: 0.55 })
   );
   wedge.rotation.z = Math.PI / 2;
   wedge.rotation.y = -0.2;
   g.add(wedge);
   const rind = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.95, 0.95, 0.12, 24, 1, false, 0, Math.PI * 0.55),
+    new THREE.CylinderGeometry(0.95, 0.95, 0.12, 48, 4, false, 0, Math.PI * 0.55),
     mat(0x66bb6a, { roughness: 0.7 })
   );
   rind.rotation.z = Math.PI / 2;
@@ -677,7 +765,7 @@ function buildWatermelon() {
   rind.position.x = -0.22;
   g.add(rind);
   const white = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.92, 0.92, 0.06, 24, 1, false, 0, Math.PI * 0.55),
+    new THREE.CylinderGeometry(0.92, 0.92, 0.06, 48, 2, false, 0, Math.PI * 0.55),
     mat(0xfff8f0, { roughness: 0.6 })
   );
   white.rotation.z = Math.PI / 2;
@@ -693,7 +781,7 @@ function buildWatermelon() {
     seed.position.set(0.1, -0.35 + i * 0.18, 0.25 - (i % 2) * 0.15);
     g.add(seed);
   }
-  g.userData.mainMeshes = [wedge];
+  g.userData.mainMeshes = markMany([wedge]);
   return g;
 }
 
@@ -705,46 +793,48 @@ function buildCatPaw() {
     transparent: true,
     opacity: 0.72,
   });
-  const paw = new THREE.Mesh(new THREE.SphereGeometry(0.85, 28, 28), clear);
+  const paw = new THREE.Mesh(new THREE.SphereGeometry(0.85, 48, 48), clear);
   paw.scale.set(1.15, 0.55, 1.05);
   g.add(paw);
   const padMat = mat(0xff8fab, { roughness: 0.45 });
-  const mainPad = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), padMat);
+  const mainPad = new THREE.Mesh(new THREE.SphereGeometry(0.28, 28, 28), padMat);
   mainPad.scale.set(1.1, 0.45, 1.0);
   mainPad.position.set(0, -0.12, 0.35);
   g.add(mainPad);
   const toes = [
     [-0.35, 0.28], [0, 0.4], [0.35, 0.28],
   ];
+  const toeMeshes = [];
   toes.forEach(([x, z]) => {
-    const t = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), padMat);
+    const t = new THREE.Mesh(new THREE.SphereGeometry(0.14, 20, 20), padMat);
     t.scale.set(1, 0.5, 1);
     t.position.set(x, -0.05, z);
     g.add(t);
+    toeMeshes.push(t);
   });
   addGlitter(g, 12, 0.55, [0xffd700, 0xff69b4, 0xffffff]);
   const cherry = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 12, 12),
+    new THREE.SphereGeometry(0.12, 16, 16),
     mat(0xe53935, { roughness: 0.35 })
   );
   cherry.position.set(0.15, 0.05, -0.1);
   g.add(cherry);
-  g.userData.mainMeshes = [paw];
+  g.userData.mainMeshes = markMany([paw, mainPad, ...toeMeshes]);
   return g;
 }
 
 function buildSeal() {
   const g = new THREE.Group();
   const bodyMat = mat(0xb0bec5, { roughness: 0.45 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 24, 24), bodyMat);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 40, 40), bodyMat);
   body.scale.set(0.95, 0.85, 1.15);
   g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 20), bodyMat);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 32), bodyMat);
   head.position.set(0, 0.15, 0.55);
   g.add(head);
   faceDots(g, 0.22, 0.9, 0.14, 0x1a1a1a);
   const flipperL = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 12, 12),
+    new THREE.SphereGeometry(0.22, 16, 16),
     bodyMat
   );
   flipperL.scale.set(0.5, 0.3, 1.2);
@@ -754,41 +844,41 @@ function buildSeal() {
   flipperR.position.x = 0.55;
   flipperR.rotation.z = -0.4;
   g.add(flipperL, flipperR);
-  g.userData.mainMeshes = [body, head];
+  g.userData.mainMeshes = markMany([body, head]);
   return g;
 }
 
 function buildBear() {
   const g = new THREE.Group();
   const fur = mat(0xd7a86e, { roughness: 0.7 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.65, 24, 24), fur);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.65, 40, 40), fur);
   body.scale.set(1.05, 0.95, 0.95);
   g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 20, 20), fur);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 32, 32), fur);
   head.position.set(0, 0.55, 0.15);
   g.add(head);
-  const earGeo = new THREE.SphereGeometry(0.16, 12, 12);
+  const earGeo = new THREE.SphereGeometry(0.16, 16, 16);
   const earL = new THREE.Mesh(earGeo, fur);
   earL.position.set(-0.35, 0.9, 0.05);
   const earR = earL.clone();
   earR.position.x = 0.35;
   g.add(earL, earR);
   const belly = new THREE.Mesh(
-    new THREE.SphereGeometry(0.35, 16, 16),
+    new THREE.SphereGeometry(0.35, 24, 24),
     mat(0xffe0b2, { roughness: 0.65 })
   );
   belly.scale.set(1, 1.1, 0.5);
   belly.position.set(0, -0.05, 0.45);
   g.add(belly);
   faceDots(g, 0.55, 0.55, 0.16);
-  g.userData.mainMeshes = [body, head];
+  g.userData.mainMeshes = markMany([body, head, belly]);
   return g;
 }
 
 function buildWaterBall() {
   const g = new THREE.Group();
   const shell = new THREE.Mesh(
-    new THREE.SphereGeometry(0.85, 32, 32),
+    new THREE.SphereGeometry(0.85, 48, 48),
     mat(0xa8e6ff, {
       roughness: 0.15,
       metalness: 0.1,
@@ -798,7 +888,7 @@ function buildWaterBall() {
   );
   g.add(shell);
   const inner = new THREE.Mesh(
-    new THREE.SphereGeometry(0.55, 24, 24),
+    new THREE.SphereGeometry(0.55, 36, 36),
     mat(0x80deea, {
       roughness: 0.2,
       transparent: true,
@@ -807,18 +897,18 @@ function buildWaterBall() {
   );
   g.add(inner);
   addGlitter(g, 18, 0.7, [0xffffff, 0xff80ab, 0xffd54f, 0x80d8ff]);
-  g.userData.mainMeshes = [shell, inner];
+  g.userData.mainMeshes = markMany([shell, inner]);
   return g;
 }
 
 function buildMaltoseBun() {
   const g = new THREE.Group();
   const goo = mat(0xffcc80, { roughness: 0.35, transparent: true, opacity: 0.9 });
-  const bun = new THREE.Mesh(new THREE.SphereGeometry(0.75, 28, 28), goo);
+  const bun = new THREE.Mesh(new THREE.SphereGeometry(0.75, 48, 48), goo);
   bun.scale.set(1.1, 0.75, 1.0);
   g.add(bun);
   const drip = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 16, 16),
+    new THREE.SphereGeometry(0.3, 28, 28),
     mat(0xffb74d, { roughness: 0.3, transparent: true, opacity: 0.85 })
   );
   drip.scale.set(0.8, 1.4, 0.7);
@@ -829,19 +919,19 @@ function buildMaltoseBun() {
   drip2.scale.set(0.6, 1.1, 0.55);
   g.add(drip2);
   const top = new THREE.Mesh(
-    new THREE.SphereGeometry(0.35, 16, 16),
+    new THREE.SphereGeometry(0.35, 28, 28),
     mat(0xffe0b2, { roughness: 0.4 })
   );
   top.position.y = 0.4;
   g.add(top);
-  g.userData.mainMeshes = [bun, drip, drip2];
+  g.userData.mainMeshes = markMany([bun, drip, drip2, top]);
   return g;
 }
 
 function buildIceCube() {
   const g = new THREE.Group();
   const ice = new THREE.Mesh(
-    new THREE.BoxGeometry(1.1, 1.1, 1.1, 2, 2, 2),
+    new THREE.BoxGeometry(1.1, 1.1, 1.1, 16, 16, 16),
     mat(0xb3e5fc, {
       roughness: 0.2,
       metalness: 0.15,
@@ -853,7 +943,7 @@ function buildIceCube() {
   g.add(ice);
   addGlitter(g, 14, 0.55, [0xffffff, 0xe1bee7, 0xfff59d]);
   const edge = new THREE.Mesh(
-    new THREE.BoxGeometry(1.05, 1.05, 1.05),
+    new THREE.BoxGeometry(1.05, 1.05, 1.05, 8, 8, 8),
     mat(0xe1f5fe, {
       roughness: 0.15,
       transparent: true,
@@ -862,25 +952,25 @@ function buildIceCube() {
   );
   edge.rotation.copy(ice.rotation);
   g.add(edge);
-  g.userData.mainMeshes = [ice];
+  g.userData.mainMeshes = markMany([ice]);
   return g;
 }
 
 function buildOwl() {
   const g = new THREE.Group();
   const bodyMat = mat(0xffcc80, { roughness: 0.6 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 24, 24), bodyMat);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 40, 40), bodyMat);
   body.scale.set(0.95, 1.05, 0.9);
   g.add(body);
   const belly = new THREE.Mesh(
-    new THREE.SphereGeometry(0.4, 16, 16),
+    new THREE.SphereGeometry(0.4, 28, 28),
     mat(0xfff3e0, { roughness: 0.55 })
   );
   belly.scale.set(1, 1.15, 0.5);
   belly.position.set(0, -0.1, 0.4);
   g.add(belly);
   const earL = new THREE.Mesh(
-    new THREE.ConeGeometry(0.18, 0.35, 8),
+    new THREE.ConeGeometry(0.18, 0.35, 12),
     bodyMat
   );
   earL.position.set(-0.35, 0.7, 0);
@@ -890,25 +980,25 @@ function buildOwl() {
   earR.rotation.z = -0.25;
   g.add(earL, earR);
   const eyeWhite = mat(0xffffff, { roughness: 0.4 });
-  const eL = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), eyeWhite);
+  const eL = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), eyeWhite);
   eL.position.set(-0.22, 0.25, 0.55);
   const eR = eL.clone();
   eR.position.x = 0.22;
   g.add(eL, eR);
   const pupil = mat(0x3e2723, { roughness: 0.3 });
-  const pL = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), pupil);
+  const pL = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), pupil);
   pL.position.set(-0.22, 0.25, 0.7);
   const pR = pL.clone();
   pR.position.x = 0.22;
   g.add(pL, pR);
   const beak = new THREE.Mesh(
-    new THREE.ConeGeometry(0.08, 0.18, 6),
+    new THREE.ConeGeometry(0.08, 0.18, 8),
     mat(0xff9800, { roughness: 0.5 })
   );
   beak.rotation.x = Math.PI;
   beak.position.set(0, 0.08, 0.72);
   g.add(beak);
-  g.userData.mainMeshes = [body];
+  g.userData.mainMeshes = markMany([body, belly]);
   return g;
 }
 
@@ -923,11 +1013,13 @@ const pickGrid = document.getElementById('pick-grid');
 const canvasWrap = document.getElementById('canvas-wrap');
 const playTitle = document.getElementById('play-title');
 const playFeel = document.getElementById('play-feel');
+const toastEl = document.getElementById('toast');
 
 let offered = [];
 let currentProduct = null;
 let currentFeelKey = null;
 let feelRevealed = false;
+let toastTimer = 0;
 
 function showScreen(name) {
   Object.keys(screens).forEach((k) => {
@@ -973,31 +1065,50 @@ function offerProducts(count) {
   });
 }
 
-function revealFeel() {
+function showToast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+
+function revealFeel(fromDent) {
   if (feelRevealed || !currentFeelKey) return;
   feelRevealed = true;
   const f = FEELS[currentFeelKey];
   playFeel.textContent = f.label;
   playFeel.classList.add('revealed');
+  if (fromDent && f.toast) showToast(f.toast);
 }
 
-/* ========== Three.js scene ========== */
+/* ========== Three.js scene + local dent physics ========== */
 const canvas = document.getElementById('c');
-let renderer, scene, camera, toyRoot, pedestal;
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+const _hitLocal = new THREE.Vector3();
+const _v = new THREE.Vector3();
+const _n = new THREE.Vector3();
+const _toward = new THREE.Vector3();
+
+let renderer, scene, camera, toyRoot, pedestal, toyModel;
 let animId = 0;
-let squeezing = false;
-let squash = 0;
-let squashVel = 0;
-let wobblePhase = 0;
+let lastFrameTime = 0;
 let orbitYaw = 0.35;
 let orbitPitch = 0.25;
 let targetYaw = 0.35;
 let targetPitch = 0.25;
-let dragging = false;
+let pressPointerId = null;
+let pointerMode = null; // 'dent' | 'orbit' | null
+let downX = 0;
+let downY = 0;
 let lastX = 0;
 let lastY = 0;
-let pressPointerId = null;
-let baseScales = [];
+let activeDentMesh = null;
+let activeDentLocal = new THREE.Vector3();
+let denting = false;
+let deformMeshes = [];
+let wobblePhase = 0;
+const ORBIT_THRESHOLD = 12;
 
 function initThree() {
   renderer = new THREE.WebGLRenderer({
@@ -1074,7 +1185,20 @@ function clearToy() {
       }
     });
   }
-  baseScales = [];
+  deformMeshes = [];
+  toyModel = null;
+  activeDentMesh = null;
+  denting = false;
+}
+
+function collectDeformMeshes(model) {
+  const mains = model.userData.mainMeshes || [];
+  deformMeshes = mains.filter((m) => m && m.userData && m.userData.deform);
+  if (!deformMeshes.length) {
+    model.traverse((o) => {
+      if (o.isMesh && o.userData.deform) deformMeshes.push(o);
+    });
+  }
 }
 
 function loadProduct(product, feelKey) {
@@ -1082,82 +1206,178 @@ function loadProduct(product, feelKey) {
   currentProduct = product;
   currentFeelKey = feelKey;
   feelRevealed = false;
-  squash = 0;
-  squashVel = 0;
   wobblePhase = 0;
   orbitYaw = 0.35 + Math.random() * 0.4;
   orbitPitch = 0.2;
   targetYaw = orbitYaw;
   targetPitch = orbitPitch;
+  pointerMode = null;
+  pressPointerId = null;
 
   playTitle.textContent = product.name;
   playFeel.textContent = '手感？捏一下就知道';
   playFeel.classList.remove('revealed');
 
-  const model = product.build();
-  toyRoot.add(model);
+  toyModel = product.build();
+  toyRoot.add(toyModel);
   toyRoot.position.y = 0.05;
-
-  baseScales = [];
-  const mains = model.userData.mainMeshes || [model];
-  mains.forEach((m) => {
-    baseScales.push({
-      mesh: m,
-      sx: m.scale.x,
-      sy: m.scale.y,
-      sz: m.scale.z,
-    });
-  });
+  collectDeformMeshes(toyModel);
 }
 
-function applySquash() {
-  const feel = FEELS[currentFeelKey] || FEELS.jelly_fast;
-  const s = squash;
-  const wob = Math.sin(wobblePhase) * feel.wobble * s;
-  baseScales.forEach(({ mesh, sx, sy, sz }) => {
-    const yMul = 1 - s * feel.maxSquash;
-    const xzMul = 1 + s * feel.maxSquash * 0.55;
-    mesh.scale.set(
-      sx * (xzMul + wob * 0.15),
-      sy * Math.max(0.25, yMul),
-      sz * (xzMul - wob * 0.1)
-    );
-  });
-  if (toyRoot.children[0]) {
-    toyRoot.children[0].position.y = -s * 0.35;
+function smoothFalloff(t) {
+  // smootherstep: 1 at center, 0 at edge
+  const x = Math.max(0, Math.min(1, 1 - t));
+  return x * x * (3 - 2 * x);
+}
+
+function deepenDent(mesh, localPoint, amount, feel) {
+  const d = mesh.userData.deform;
+  if (!d) return;
+  const { base, dents, normals, center } = d;
+  const posAttr = mesh.geometry.attributes.position;
+  const radius = feel.dentRadius;
+  const maxDepth = feel.maxDepth;
+  const invR = 1 / Math.max(radius, 1e-4);
+  let changed = false;
+
+  for (let i = 0; i < dents.length; i++) {
+    const ix = i * 3;
+    const bx = base[ix], by = base[ix + 1], bz = base[ix + 2];
+    const dx = bx - localPoint.x;
+    const dy = by - localPoint.y;
+    const dz = bz - localPoint.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (dist >= radius) continue;
+    const w = smoothFalloff(dist * invR);
+    const add = amount * w / Math.max(feel.resistance, 0.5);
+    if (add <= 0) continue;
+    const next = Math.min(maxDepth, dents[i] + add);
+    if (next > dents[i] + 1e-6) {
+      dents[i] = next;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    writeDentPositions(mesh, feel);
   }
 }
 
-function tick() {
-  animId = requestAnimationFrame(tick);
-  const feel = FEELS[currentFeelKey] || FEELS.jelly_fast;
+function writeDentPositions(mesh, feel) {
+  const d = mesh.userData.deform;
+  if (!d) return;
+  const { base, dents, normals, center } = d;
+  const posAttr = mesh.geometry.attributes.position;
+  const arr = posAttr.array;
+  const wob = feel ? feel.wobble : 0;
+  const wobAmp = wob * 0.015 * Math.sin(wobblePhase);
 
-  if (squeezing) {
-    squash = Math.min(1, squash + feel.pressSpeed * 0.016);
-    squashVel = 0;
-  } else {
-    // slow rise / jelly rebound
-    const target = 0;
-    const diff = target - squash;
-    if (feel.dentHold > 0 && squash > 0.05) {
-      // memory foam / mush: ease very slowly after a hold plateau
-      const holdFactor = squash > feel.dentHold ? 0.4 : 1;
-      squashVel += diff * feel.releaseEase * holdFactor;
-      squashVel *= 0.92;
-      squash += squashVel;
+  for (let i = 0; i < dents.length; i++) {
+    const ix = i * 3;
+    const bx = base[ix], by = base[ix + 1], bz = base[ix + 2];
+    let nx, ny, nz;
+    if (normals) {
+      nx = normals[ix];
+      ny = normals[ix + 1];
+      nz = normals[ix + 2];
     } else {
-      squashVel += diff * feel.releaseEase * 1.8;
-      squashVel *= 0.85 - feel.wobble * 0.1;
-      squash += squashVel;
+      nx = bx - center.x;
+      ny = by - center.y;
+      nz = bz - center.z;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      nx /= len; ny /= len; nz /= len;
     }
-    if (Math.abs(squash) < 0.001 && Math.abs(squashVel) < 0.001) {
-      squash = 0;
-      squashVel = 0;
+    // also bias slightly toward geometric center for softer clay look
+    _toward.set(center.x - bx, center.y - by, center.z - bz);
+    if (_toward.lengthSq() > 1e-8) {
+      _toward.normalize();
+      nx = nx * 0.65 + _toward.x * 0.35;
+      ny = ny * 0.65 + _toward.y * 0.35;
+      nz = nz * 0.65 + _toward.z * 0.35;
+      const len2 = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      nx /= len2; ny /= len2; nz /= len2;
     }
+    const depth = dents[i];
+    const jiggle = depth > 0.01 ? wobAmp * depth : 0;
+    arr[ix] = bx - nx * depth + jiggle * nx;
+    arr[ix + 1] = by - ny * depth;
+    arr[ix + 2] = bz - nz * depth - jiggle * 0.5 * nz;
+  }
+  posAttr.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  d.dirty = true;
+}
+
+function recoverDents(dt) {
+  const feel = FEELS[currentFeelKey] || FEELS.jelly_fast;
+  const rate = feel.recovery;
+  for (let m = 0; m < deformMeshes.length; m++) {
+    const mesh = deformMeshes[m];
+    // while actively pressing this mesh, skip recovery on it
+    if (denting && mesh === activeDentMesh) continue;
+    const d = mesh.userData.deform;
+    if (!d) continue;
+    const { dents } = d;
+    let any = false;
+    if (rate <= 0) {
+      // clay: stay forever until reset
+      continue;
+    }
+    const decay = Math.exp(-rate * dt);
+    // springy feels overshoot slightly via wobble phase already
+    const springBoost = feel.wobble > 0.2 ? 1 + feel.wobble * 0.15 * Math.sin(wobblePhase * 1.7) : 1;
+    const factor = Math.pow(decay, springBoost);
+    for (let i = 0; i < dents.length; i++) {
+      if (dents[i] <= 0) continue;
+      dents[i] *= factor;
+      if (dents[i] < 0.0008) dents[i] = 0;
+      else any = true;
+    }
+    if (any || d.dirty) writeDentPositions(mesh, feel);
+  }
+}
+
+function resetAllDents() {
+  for (let m = 0; m < deformMeshes.length; m++) {
+    const mesh = deformMeshes[m];
+    const d = mesh.userData.deform;
+    if (!d) continue;
+    d.dents.fill(0);
+    const posAttr = mesh.geometry.attributes.position;
+    posAttr.array.set(d.base);
+    posAttr.needsUpdate = true;
+    mesh.geometry.computeVertexNormals();
+    d.dirty = false;
+  }
+}
+
+function setPointerFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function raycastToy(e) {
+  setPointerFromEvent(e);
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(deformMeshes, false);
+  return hits.length ? hits[0] : null;
+}
+
+function tick(now) {
+  animId = requestAnimationFrame(tick);
+  const t = now || performance.now();
+  const dt = Math.min(0.05, (t - (lastFrameTime || t)) / 1000) || 0.016;
+  lastFrameTime = t;
+
+  const feel = FEELS[currentFeelKey] || FEELS.jelly_fast;
+  wobblePhase += dt * (4 + feel.wobble * 6);
+
+  if (denting && activeDentMesh && pointerMode === 'dent') {
+    deepenDent(activeDentMesh, activeDentLocal, feel.pressRate * dt, feel);
   }
 
-  wobblePhase += 0.12 + feel.wobble * 0.2;
-  applySquash();
+  recoverDents(dt);
 
   orbitYaw += (targetYaw - orbitYaw) * 0.12;
   orbitPitch += (targetPitch - orbitPitch) * 0.12;
@@ -1180,6 +1400,7 @@ function startPlay(product, feelKey) {
     playUi.classList.add('active');
     canvasWrap.classList.add('playing');
     onResize();
+    lastFrameTime = 0;
     cancelAnimationFrame(animId);
     tick();
   } catch (err) {
@@ -1190,28 +1411,44 @@ function startPlay(product, feelKey) {
 }
 
 function stopPlayTo(screenName) {
-  squeezing = false;
+  denting = false;
+  pointerMode = null;
   pressPointerId = null;
-  dragging = false;
+  activeDentMesh = null;
   cancelAnimationFrame(animId);
   clearToy();
   canvasWrap.classList.remove('playing');
   playUi.classList.remove('active');
+  toastEl.classList.remove('show');
   showScreen(screenName);
   if (renderer) renderer.render(scene, camera);
 }
 
-/* ========== Pointer on canvas ========== */
+/* ========== Pointer: press=dent, drag=orbit ========== */
 function onPointerDown(e) {
   if (!canvasWrap.classList.contains('playing')) return;
   e.preventDefault();
-  dragging = false;
-  lastX = e.clientX;
-  lastY = e.clientY;
+  downX = lastX = e.clientX;
+  downY = lastY = e.clientY;
   pressPointerId = e.pointerId;
+  pointerMode = null;
+  denting = false;
+  activeDentMesh = null;
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-  squeezing = true;
-  revealFeel();
+
+  const hit = raycastToy(e);
+  if (hit) {
+    pointerMode = 'dent';
+    denting = true;
+    activeDentMesh = hit.object;
+    activeDentLocal.copy(hit.point);
+    activeDentMesh.worldToLocal(activeDentLocal);
+    const feel = FEELS[currentFeelKey] || FEELS.jelly_fast;
+    deepenDent(activeDentMesh, activeDentLocal, 0.04 * feel.pressRate, feel);
+    revealFeel(true);
+  } else {
+    pointerMode = 'orbit';
+  }
 }
 
 function onPointerMove(e) {
@@ -1219,23 +1456,37 @@ function onPointerMove(e) {
   if (pressPointerId !== e.pointerId) return;
   const dx = e.clientX - lastX;
   const dy = e.clientY - lastY;
-  if (!dragging && (Math.abs(dx) + Math.abs(dy) > 10)) {
-    dragging = true;
-    squeezing = false;
+  const totalDx = e.clientX - downX;
+  const totalDy = e.clientY - downY;
+
+  if (pointerMode === 'dent' && (Math.abs(totalDx) + Math.abs(totalDy) > ORBIT_THRESHOLD)) {
+    // switch to orbit; existing dent stays
+    pointerMode = 'orbit';
+    denting = false;
   }
-  if (dragging) {
+
+  if (pointerMode === 'orbit') {
     targetYaw -= dx * 0.01;
     targetPitch = Math.max(-0.5, Math.min(0.85, targetPitch + dy * 0.008));
+  } else if (pointerMode === 'dent' && denting && activeDentMesh) {
+    // optionally follow finger along surface
+    const hit = raycastToy(e);
+    if (hit && hit.object === activeDentMesh) {
+      activeDentLocal.copy(hit.point);
+      activeDentMesh.worldToLocal(activeDentLocal);
+    }
   }
+
   lastX = e.clientX;
   lastY = e.clientY;
 }
 
 function onPointerUp(e) {
   if (pressPointerId !== null && e.pointerId !== pressPointerId) return;
-  squeezing = false;
-  dragging = false;
+  denting = false;
+  pointerMode = null;
   pressPointerId = null;
+  activeDentMesh = null;
   try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
 }
 
@@ -1265,7 +1516,6 @@ document.getElementById('count-grid').addEventListener('click', (e) => {
   showScreen('pick');
 });
 
-/* Delegated pointerup + click for pick cards (iPhone Safari) */
 function handlePick(e) {
   const card = e.target.closest('.card');
   if (!card || !pickGrid.contains(card)) return;
@@ -1290,12 +1540,10 @@ pickGrid.addEventListener('pointerup', (e) => {
 pickGrid.addEventListener('click', handlePick);
 
 document.getElementById('btn-reset').addEventListener('click', () => {
-  squash = 0;
-  squashVel = 0;
-  if (currentProduct && currentFeelKey) {
-    // rebuild to clear any residual deformation visual
-    loadProduct(currentProduct, currentFeelKey);
-    feelRevealed = true;
+  resetAllDents();
+  denting = false;
+  activeDentMesh = null;
+  if (currentFeelKey && feelRevealed) {
     playFeel.textContent = FEELS[currentFeelKey].label;
     playFeel.classList.add('revealed');
   }
@@ -1313,7 +1561,6 @@ document.getElementById('btn-exit').addEventListener('click', () => {
   stopPlayTo('start');
 });
 
-// Warm up three on first paint path
 try {
   initThree();
   renderer.render(scene, camera);
