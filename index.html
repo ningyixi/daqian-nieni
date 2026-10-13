@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="大前捏捏">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0c0a14">
+<meta name="format-detection" content="telephone=no">
+<title>大前捏捏 · 解压</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0c0a14;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    touch-action: none;
+    color: #f5f0ff;
+  }
+  .screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding:
+      max(16px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      max(20px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+    z-index: 10;
+    background: radial-gradient(ellipse at 50% 20%, #1a1430 0%, #0c0a14 55%, #08060f 100%);
+    transition: opacity 0.28s ease, visibility 0.28s;
+  }
+  .screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  .logo {
+    font-size: clamp(2.4rem, 11vw, 3.4rem);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    background: linear-gradient(135deg, #ff9ec8, #c9a0ff, #8ec5ff);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.4rem;
+    text-align: center;
+  }
+  .subtitle {
+    font-size: 0.95rem;
+    color: rgba(245, 240, 255, 0.55);
+    margin-bottom: 2.2rem;
+    letter-spacing: 0.18em;
+  }
+  .btn {
+    appearance: none; border: none; outline: none;
+    font: inherit; cursor: pointer;
+    border-radius: 999px;
+    padding: 0.85rem 2.2rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #1a1020;
+    background: linear-gradient(135deg, #ffb3d0, #d4b3ff);
+    box-shadow: 0 8px 28px rgba(200, 140, 255, 0.28);
+    transition: transform 0.15s ease;
+    touch-action: manipulation;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn.ghost {
+    background: rgba(255,255,255,0.08);
+    color: #f5f0ff;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.14);
+    margin-top: 0.75rem;
+  }
+  .hint {
+    margin-top: 1.6rem;
+    font-size: 0.8rem;
+    color: rgba(245, 240, 255, 0.35);
+    text-align: center;
+    line-height: 1.5;
+  }
+  .panel-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    letter-spacing: 0.08em;
+  }
+  .panel-sub {
+    font-size: 0.85rem;
+    color: rgba(245, 240, 255, 0.45);
+    margin-bottom: 1.4rem;
+  }
+  .count-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    width: min(300px, 86vw);
+    margin-bottom: 0.5rem;
+  }
+  .count-btn {
+    appearance: none; border: none; outline: none;
+    font: inherit; cursor: pointer;
+    border-radius: 1.1rem;
+    padding: 1.1rem 0.5rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #f5f0ff;
+    font-size: 1.35rem;
+    font-weight: 700;
+    transition: background 0.15s, transform 0.12s, border-color 0.15s;
+    touch-action: manipulation;
+  }
+  .count-btn span {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: rgba(245, 240, 255, 0.4);
+    margin-top: 0.25rem;
+    letter-spacing: 0.06em;
+  }
+  .count-btn:active { transform: scale(0.96); }
+  .pick-grid {
+    display: grid;
+    gap: 0.7rem;
+    width: min(360px, 92vw);
+    max-height: min(58vh, 480px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.2rem;
+    margin-bottom: 0.8rem;
+    touch-action: pan-y;
+  }
+  .pick-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .pick-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .card {
+    appearance: none; border: none; outline: none;
+    font: inherit; cursor: pointer;
+    border-radius: 1.15rem;
+    padding: 0.85rem 0.5rem 0.75rem;
+    background: rgba(255,255,255,0.06);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    color: #f5f0ff;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 0.45rem;
+    transition: transform 0.12s, border-color 0.15s;
+    touch-action: manipulation;
+  }
+  .card:active { transform: scale(0.95); }
+  .card-blob {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25), inset 0 -6px 12px rgba(0,0,0,0.12), inset 0 4px 10px rgba(255,255,255,0.35);
+  }
+  .card-blob.paw::after {
+    content: "";
+    position: absolute; inset: 18% 22% auto;
+    height: 38%;
+    border-radius: 50%;
+    background: inherit;
+    box-shadow:
+      -14px 10px 0 -2px currentColor,
+      14px 10px 0 -2px currentColor,
+      -7px 18px 0 -3px currentColor,
+      7px 18px 0 -3px currentColor;
+    color: inherit;
+    opacity: 0.85;
+  }
+  .card-blob.cloud { border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%; }
+  .card-blob.star {
+    clip-path: polygon(50% 4%, 61% 35%, 96% 35%, 68% 57%, 79% 91%, 50% 72%, 21% 91%, 32% 57%, 4% 35%, 39% 35%);
+    border-radius: 0;
+  }
+  .card-blob.monster { border-radius: 46% 54% 48% 52% / 42% 40% 60% 58%; }
+  .card-blob.heart {
+    clip-path: path('M26 46 C26 46 4 30 4 16 C4 8 10 4 16 4 C21 4 24 7 26 11 C28 7 31 4 36 4 C42 4 48 8 48 16 C48 30 26 46 26 46 Z');
+    border-radius: 0;
+  }
+  .card-blob.bean { border-radius: 60% 40% 55% 45% / 55% 45% 55% 45%; transform: rotate(-18deg); }
+  .card-blob.cube { border-radius: 18%; }
+  .card-blob.donut {
+    background: radial-gradient(circle at 50% 50%, transparent 28%, currentColor 30%) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  }
+  .card-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    line-height: 1.25;
+    color: rgba(245, 240, 255, 0.85);
+  }
+  #play-screen {
+    background: transparent;
+    justify-content: flex-start;
+    padding: 0;
+    pointer-events: none;
+  }
+  #play-ui {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding:
+      max(14px, env(safe-area-inset-top))
+      max(14px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom))
+      max(14px, env(safe-area-inset-left));
+  }
+  #play-ui .top-bar,
+  #play-ui .bottom-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    pointer-events: auto;
+  }
+  #play-ui .top-bar { justify-content: space-between; }
+  #play-ui .bottom-bar { justify-content: center; flex-wrap: wrap; gap: 0.55rem; }
+  .chip {
+    appearance: none; border: none; outline: none;
+    font: inherit; cursor: pointer;
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #f5f0ff;
+    background: rgba(20, 16, 32, 0.55);
+    border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    touch-action: manipulation;
+  }
+  .chip:active { transform: scale(0.96); }
+  .chip.accent {
+    background: rgba(255, 180, 210, 0.22);
+    border-color: rgba(255, 180, 210, 0.4);
+  }
+  .play-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: rgba(245, 240, 255, 0.9);
+    text-shadow: 0 2px 12px rgba(0,0,0,0.45);
+  }
+  .play-tip {
+    text-align: center;
+    font-size: 0.78rem;
+    color: rgba(245, 240, 255, 0.4);
+    pointer-events: none;
+    margin-bottom: 0.45rem;
+  }
+  #canvas-wrap {
+    position: fixed; inset: 0;
+    z-index: 1;
+    background: radial-gradient(ellipse at 50% 40%, #1e1835 0%, #0c0a14 70%);
+  }
+  #canvas-wrap canvas {
+    display: block;
+    width: 100%; height: 100%;
+    touch-action: none;
+  }
+  .ripple {
+    position: absolute;
+    width: 18px; height: 18px;
+    margin: -9px 0 0 -9px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 200, 230, 0.7);
+    pointer-events: none;
+    animation: ripple-out 0.55s ease-out forwards;
+    z-index: 6;
+  }
+  @keyframes ripple-out {
+    to { transform: scale(3.2); opacity: 0; }
+  }
+  .sq-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: rgba(245, 240, 255, 0.5);
+    min-width: 4.5em;
+    text-align: right;
+  }
+  .feel-toast {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%);
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.9);
+    background: rgba(20,16,32,0.55);
+    border: 1px solid rgba(255,255,255,0.12);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s;
+    z-index: 7;
+  }
+  .feel-toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+  <div id="canvas-wrap" aria-hidden="true"></div>
+
+  <div id="start-screen" class="screen">
+    <div class="logo">大前捏捏</div>
+    <div class="subtitle">解压捏捏 · 点一下就松</div>
+    <button class="btn" id="btn-start" type="button">开始捏捏</button>
+    <p class="hint">外表差不多，手感各不同<br>捏一捏才知道里面是什么</p>
+  </div>
+
+  <div id="count-screen" class="screen hidden">
+    <div class="panel-title">今天想捏几个？</div>
+    <div class="panel-sub">先选数量，再挑一个开捏</div>
+    <div class="count-grid" id="count-grid">
+      <button class="count-btn" data-n="3" type="button">3<span>轻度纠结</span></button>
+      <button class="count-btn" data-n="4" type="button">4<span>刚好够选</span></button>
+      <button class="count-btn" data-n="5" type="button">5<span>多一点</span></button>
+      <button class="count-btn" data-n="6" type="button">6<span>全都看看</span></button>
+    </div>
+    <button class="btn ghost" id="btn-back-start" type="button">返回</button>
+  </div>
+
+  <div id="pick-screen" class="screen hidden">
+    <div class="panel-title">选一个开捏</div>
+    <div class="panel-sub" id="pick-sub">手感是隐藏的，捏了才知道</div>
+    <div class="pick-grid cols-2" id="pick-grid"></div>
+    <button class="btn ghost" id="btn-recount" type="button">再选数量</button>
+  </div>
+
+  <div id="play-screen" class="screen hidden">
+    <div id="play-ui">
+      <div class="top-bar">
+        <button class="chip" id="btn-change" type="button">换一个</button>
+        <div class="play-name" id="play-name">—</div>
+        <span class="sq-count" id="sq-count">捏了 0 下</span>
+      </div>
+      <div class="feel-toast" id="feel-toast"></div>
+      <div>
+        <div class="play-tip">拖动转一转 · 点按 / 按住捏 · 松手看手感</div>
+        <div class="bottom-bar">
+          <button class="chip accent" id="btn-reset" type="button">重置</button>
+          <button class="chip" id="btn-recount2" type="button">再选数量</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/** Hidden material physics profiles — never shown on cards */
+const MATERIALS = {
+  waterball: {
+    // 弹性水球: soft, strong rebound
+    maxSquash: 0.55,
+    expand: 0.32,
+    holdStiffness: 22,
+    releaseStiffness: 28,
+    damping: 0.72,
+    permanent: 0,
+    crackRate: 0,
+    crackMax: 0,
+    shatter: false,
+    wobbleAmp: 0.04,
+    bounceOvershoot: 1.25,
+    tip: '啵——水球弹回来了'
+  },
+  jelly: {
+    // 果冻: wobble lots
+    maxSquash: 0.48,
+    expand: 0.28,
+    holdStiffness: 14,
+    releaseStiffness: 10,
+    damping: 0.86,
+    permanent: 0,
+    crackRate: 0,
+    crackMax: 0,
+    shatter: false,
+    wobbleAmp: 0.09,
+    bounceOvershoot: 1.1,
+    tip: '果冻在晃～'
+  },
+  cotton: {
+    // 棉花: light, weak rebound
+    maxSquash: 0.62,
+    expand: 0.12,
+    holdStiffness: 8,
+    releaseStiffness: 4.5,
+    damping: 0.9,
+    permanent: 0.02,
+    crackRate: 0,
+    crackMax: 0,
+    shatter: false,
+    wobbleAmp: 0.015,
+    bounceOvershoot: 0.85,
+    tip: '棉花软软的，回得很慢'
+  },
+  clay: {
+    // 黏土: stays deformed
+    maxSquash: 0.5,
+    expand: 0.2,
+    holdStiffness: 16,
+    releaseStiffness: 6,
+    damping: 0.88,
+    permanent: 0.55,
+    crackRate: 0,
+    crackMax: 0,
+    shatter: false,
+    wobbleAmp: 0.01,
+    bounceOvershoot: 0.7,
+    tip: '黏土被捏定型了'
+  },
+  icecream: {
+    // 雪糕: flattens, cracks appear
+    maxSquash: 0.7,
+    expand: 0.08,
+    holdStiffness: 12,
+    releaseStiffness: 3.5,
+    damping: 0.92,
+    permanent: 0.72,
+    crackRate: 0.12,
+    crackMax: 1,
+    shatter: false,
+    wobbleAmp: 0.008,
+    bounceOvershoot: 0.6,
+    tip: '雪糕裂开了…可重置'
+  },
+  glass: {
+    // 玻璃/硬脆: stiff, cracks/shatter feel
+    maxSquash: 0.18,
+    expand: 0.06,
+    holdStiffness: 40,
+    releaseStiffness: 35,
+    damping: 0.65,
+    permanent: 0.05,
+    crackRate: 0.22,
+    crackMax: 1,
+    shatter: true,
+    wobbleAmp: 0.004,
+    bounceOvershoot: 1.05,
+    tip: '脆！裂痕出现了'
+  },
+  slime: {
+    // 史莱姆: sticky slow pull-back
+    maxSquash: 0.58,
+    expand: 0.35,
+    holdStiffness: 9,
+    releaseStiffness: 5,
+    damping: 0.93,
+    permanent: 0.18,
+    crackRate: 0,
+    crackMax: 0,
+    shatter: false,
+    wobbleAmp: 0.05,
+    bounceOvershoot: 0.95,
+    tip: '黏糊糊地拉回来…'
+  },
+  rubber: {
+    // 橡胶: firm snappy
+    maxSquash: 0.38,
+    expand: 0.24,
+    holdStiffness: 26,
+    releaseStiffness: 32,
+    damping: 0.68,
+    permanent: 0,
+    crackRate: 0,
+    crackMax: 0,
+    shatter: false,
+    wobbleAmp: 0.025,
+    bounceOvershoot: 1.35,
+    tip: '橡胶啪地弹回'
+  }
+};
+
+/** Visual pool — cute names only; material is hidden until play */
+const SQUISHIES = [
+  { id: 'paw', name: '粉色猫爪', color: '#ff9ec8', emissive: '#4a2038', cardClass: 'paw', shape: 'paw', material: 'waterball', jellyLook: false },
+  { id: 'mint', name: '薄荷绿球', color: '#7dffa8', emissive: '#1a4030', cardClass: '', shape: 'sphere', material: 'jelly', jellyLook: true },
+  { id: 'lemon', name: '柠檬黄圆', color: '#ffe566', emissive: '#4a4010', cardClass: '', shape: 'sphere', material: 'icecream', jellyLook: false },
+  { id: 'cloud', name: '天蓝云朵', color: '#9fd6ff', emissive: '#1a3048', cardClass: 'cloud', shape: 'cloud', material: 'cotton', jellyLook: false },
+  { id: 'star', name: '紫色星星', color: '#c9a0ff', emissive: '#301848', cardClass: 'star', shape: 'star', material: 'glass', jellyLook: false },
+  { id: 'monster', name: '橘色小怪', color: '#ff9a5c', emissive: '#4a2810', cardClass: 'monster', shape: 'monster', material: 'clay', jellyLook: false },
+  { id: 'heart', name: '蜜桃小心', color: '#ff7aa8', emissive: '#401028', cardClass: 'heart', shape: 'heart', material: 'slime', jellyLook: false },
+  { id: 'bean', name: '奶白小豆', color: '#fff0dd', emissive: '#3a3020', cardClass: 'bean', shape: 'bean', material: 'rubber', jellyLook: false },
+  { id: 'cube', name: '珊瑚方糖', color: '#ff8f7a', emissive: '#402018', cardClass: 'cube', shape: 'cube', material: 'icecream', jellyLook: false },
+  { id: 'donut', name: '葡萄甜甜圈', color: '#b794f6', emissive: '#281848', cardClass: 'donut', shape: 'donut', material: 'jelly', jellyLook: true },
+  { id: 'ocean', name: '深海泡泡', color: '#5ec8ff', emissive: '#102848', cardClass: '', shape: 'sphere', material: 'waterball', jellyLook: true },
+  { id: 'lava', name: '熔岩蛋', color: '#ff6b4a', emissive: '#401808', cardClass: 'monster', shape: 'egg', material: 'glass', jellyLook: false }
+];
+
+// ---- UI ----
+const startScreen = document.getElementById('start-screen');
+const countScreen = document.getElementById('count-screen');
+const pickScreen = document.getElementById('pick-screen');
+const playScreen = document.getElementById('play-screen');
+const pickGrid = document.getElementById('pick-grid');
+const playName = document.getElementById('play-name');
+const sqCountEl = document.getElementById('sq-count');
+const feelToast = document.getElementById('feel-toast');
+
+function show(el) {
+  [startScreen, countScreen, pickScreen, playScreen].forEach(s => {
+    s.classList.toggle('hidden', s !== el);
+  });
+}
+
+document.getElementById('btn-start').addEventListener('click', () => show(countScreen));
+document.getElementById('btn-back-start').addEventListener('click', () => show(startScreen));
+document.getElementById('btn-recount').addEventListener('click', () => show(countScreen));
+document.getElementById('btn-recount2').addEventListener('click', () => { stopPlay(); show(countScreen); });
+document.getElementById('btn-change').addEventListener('click', () => { stopPlay(); show(pickScreen); });
+document.getElementById('btn-reset').addEventListener('click', () => resetCurrent());
+
+document.getElementById('count-grid').addEventListener('click', (e) => {
+  const btn = e.target.closest('.count-btn');
+  if (!btn) return;
+  openPick(parseInt(btn.dataset.n, 10));
+});
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+let currentOptions = [];
+
+function openPick(n) {
+  currentOptions = shuffle(SQUISHIES).slice(0, n);
+  pickGrid.className = 'pick-grid ' + (n >= 5 ? 'cols-3' : 'cols-2');
+  document.getElementById('pick-sub').textContent = `从 ${n} 个里挑 · 手感要捏了才知道`;
+  pickGrid.innerHTML = '';
+  currentOptions.forEach((s) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'card';
+    // NO material / feel text on cards
+    b.innerHTML = `<div class="card-blob ${s.cardClass}" style="background:${s.color};color:${s.color}"></div><div class="card-name">${s.name}</div>`;
+    b.addEventListener('click', () => startPlay(s));
+    pickGrid.appendChild(b);
+  });
+  show(pickScreen);
+}
+
+function toastFeel(text) {
+  feelToast.textContent = text;
+  feelToast.classList.add('show');
+  clearTimeout(toastFeel._t);
+  toastFeel._t = setTimeout(() => feelToast.classList.remove('show'), 1600);
+}
+
+// ---- Three.js ----
+const wrap = document.getElementById('canvas-wrap');
+let renderer, scene, camera, squishRoot, animId = 0;
+let playing = false;
+let pressActive = false;
+let holdCounted = false;
+let squishAmount = 0;
+let squishVel = 0;
+let permanentDeform = 0;
+let crackLevel = 0;
+let shattered = false;
+let rotateVelX = 0, rotateVelY = 0;
+let pointerDown = false;
+let lastX = 0, lastY = 0;
+let moved = false;
+let pressStart = 0;
+let lastClientX = 0, lastClientY = 0;
+let pinchCount = 0;
+let currentSpec = null;
+let phys = null;
+let baseScale = new THREE.Vector3(1, 1, 1);
+let idleT = 0;
+let tipShown = false;
+let crackGroup = null;
+
+function initThree() {
+  if (renderer) return;
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  wrap.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0.15, 4.2);
+
+  scene.add(new THREE.AmbientLight(0xb8a8d8, 0.55));
+  const key = new THREE.DirectionalLight(0xffe8f5, 1.15);
+  key.position.set(2.5, 3.5, 4);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88bbff, 0.45);
+  fill.position.set(-3, 1, -2);
+  scene.add(fill);
+  const rim = new THREE.PointLight(0xffaadd, 0.55, 12);
+  rim.position.set(0, -1.5, 2.5);
+  scene.add(rim);
+
+  const glow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.6, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffc8e8, transparent: true, opacity: 0.08, depthWrite: false })
+  );
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = -1.35;
+  scene.add(glow);
+
+  window.addEventListener('resize', onResize);
+  const el = renderer.domElement;
+  el.addEventListener('pointerdown', onPointerDown);
+  el.addEventListener('pointermove', onPointerMove);
+  el.addEventListener('pointerup', onPointerUp);
+  el.addEventListener('pointercancel', onPointerUp);
+}
+
+function onResize() {
+  if (!renderer) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function makeMaterial(spec) {
+  if (spec.jellyLook) {
+    return new THREE.MeshPhysicalMaterial({
+      color: spec.color,
+      emissive: spec.emissive,
+      emissiveIntensity: 0.25,
+      roughness: 0.18,
+      metalness: 0.05,
+      transmission: 0.32,
+      thickness: 0.8,
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.25,
+      transparent: true,
+      opacity: 0.92
+    });
+  }
+  const glossy = spec.material === 'glass' || spec.material === 'waterball';
+  return new THREE.MeshPhysicalMaterial({
+    color: spec.color,
+    emissive: spec.emissive,
+    emissiveIntensity: 0.22,
+    roughness: glossy ? 0.12 : (spec.material === 'cotton' ? 0.75 : 0.35),
+    metalness: glossy ? 0.15 : 0.02,
+    clearcoat: glossy ? 0.9 : 0.55,
+    clearcoatRoughness: glossy ? 0.08 : 0.3,
+    sheen: spec.material === 'cotton' ? 0.6 : 0.35,
+    sheenRoughness: 0.5,
+    sheenColor: new THREE.Color(spec.color)
+  });
+}
+
+function buildShape(spec, mat) {
+  const g = new THREE.Group();
+  switch (spec.shape) {
+    case 'paw': {
+      const palm = new THREE.Mesh(new THREE.SphereGeometry(0.72, 48, 48), mat);
+      palm.scale.set(1.05, 0.78, 1.0);
+      g.add(palm);
+      [[-0.42, 0.42, 0.35], [0.42, 0.42, 0.35], [-0.15, 0.55, 0.42], [0.15, 0.55, 0.42]].forEach(([x, y, z]) => {
+        const t = new THREE.Mesh(new THREE.SphereGeometry(0.22, 32, 32), mat);
+        t.position.set(x, y, z);
+        g.add(t);
+      });
+      break;
+    }
+    case 'cloud': {
+      [[0, 0, 0, 0.7], [-0.55, -0.05, 0.1, 0.5], [0.55, -0.08, 0.05, 0.52],
+       [0.15, 0.35, -0.1, 0.45], [-0.2, 0.28, 0.15, 0.4], [0.05, -0.35, 0.2, 0.42]].forEach(([x, y, z, r]) => {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r, 36, 36), mat);
+        m.position.set(x, y, z);
+        g.add(m);
+      });
+      break;
+    }
+    case 'star': {
+      const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.95, 1), mat);
+      mesh.scale.set(1, 1.05, 0.85);
+      g.add(mesh);
+      break;
+    }
+    case 'monster': {
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.85, 48, 48), mat);
+      body.scale.set(1.05, 0.95, 1);
+      g.add(body);
+      const eyeWhite = new THREE.MeshLambertMaterial({ color: '#fff8f0' });
+      const pupil = new THREE.MeshLambertMaterial({ color: '#2a1a10' });
+      [[-0.28, 0.22, 0.68], [0.28, 0.22, 0.68]].forEach(([x, y, z]) => {
+        const e = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 24), eyeWhite);
+        e.position.set(x, y, z); g.add(e);
+        const p = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), pupil);
+        p.position.set(x, y, z + 0.12); g.add(p);
+      });
+      const hornMat = mat.clone();
+      hornMat.color = new THREE.Color('#ff7a3d');
+      [[-0.38, 0.72, 0], [0.38, 0.72, 0]].forEach(([x, y, z]) => {
+        const h = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.32, 16), hornMat);
+        h.position.set(x, y, z);
+        h.rotation.z = x < 0 ? 0.25 : -0.25;
+        g.add(h);
+      });
+      break;
+    }
+    case 'heart': {
+      // approximate heart with two spheres + cone-ish
+      const a = new THREE.Mesh(new THREE.SphereGeometry(0.48, 40, 40), mat);
+      a.position.set(-0.28, 0.28, 0); g.add(a);
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.48, 40, 40), mat);
+      b.position.set(0.28, 0.28, 0); g.add(b);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.55, 40, 40), mat);
+      tip.scale.set(1.1, 1.15, 0.9);
+      tip.position.set(0, -0.25, 0); g.add(tip);
+      break;
+    }
+    case 'bean': {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 48, 48), mat);
+      m.scale.set(0.75, 1.15, 0.7);
+      m.rotation.z = -0.35;
+      g.add(m);
+      break;
+    }
+    case 'cube': {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2, 8, 8, 8), mat);
+      // soften corners visually via slight sphere overlay? keep cube
+      g.add(m);
+      break;
+    }
+    case 'donut': {
+      const m = new THREE.Mesh(new THREE.TorusGeometry(0.65, 0.32, 28, 48), mat);
+      m.rotation.x = Math.PI / 2.4;
+      g.add(m);
+      break;
+    }
+    case 'egg': {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.85, 48, 48), mat);
+      m.scale.set(0.85, 1.15, 0.85);
+      g.add(m);
+      break;
+    }
+    default: {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.95, 56, 56), mat);
+      g.add(m);
+    }
+  }
+  return g;
+}
+
+function clearSquish() {
+  if (crackGroup) {
+    scene.remove(crackGroup);
+    crackGroup.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+    crackGroup = null;
+  }
+  if (!squishRoot) return;
+  scene.remove(squishRoot);
+  squishRoot.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+      else o.material.dispose();
+    }
+  });
+  squishRoot = null;
+}
+
+function rebuildCracks() {
+  if (crackGroup) {
+    if (squishRoot) squishRoot.remove(crackGroup);
+    else scene.remove(crackGroup);
+    crackGroup.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+    crackGroup = null;
+  }
+  if (crackLevel <= 0.02 || !squishRoot) return;
+  crackGroup = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({
+    color: shattered ? 0xffffff : 0x2a1810,
+    transparent: true,
+    opacity: Math.min(0.95, 0.35 + crackLevel * 0.6)
+  });
+  const n = Math.floor(3 + crackLevel * 10);
+  for (let i = 0; i < n; i++) {
+    const pts = [];
+    let x = (Math.random() - 0.5) * 1.4;
+    let y = (Math.random() - 0.5) * 1.4;
+    let z = 0.55 + Math.random() * 0.25;
+    pts.push(new THREE.Vector3(x, y, z));
+    const segs = 3 + Math.floor(Math.random() * 3);
+    for (let s = 0; s < segs; s++) {
+      x += (Math.random() - 0.5) * 0.45;
+      y += (Math.random() - 0.5) * 0.45;
+      z += (Math.random() - 0.5) * 0.08;
+      pts.push(new THREE.Vector3(x, y, z));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    crackGroup.add(new THREE.Line(geo, mat));
+  }
+  // chips for glass shatter
+  if (shattered) {
+    const chipMat = new THREE.MeshBasicMaterial({
+      color: currentSpec.color,
+      transparent: true,
+      opacity: 0.55
+    });
+    for (let i = 0; i < 8; i++) {
+      const chip = new THREE.Mesh(new THREE.TetrahedronGeometry(0.08 + Math.random() * 0.06, 0), chipMat);
+      chip.position.set((Math.random() - 0.5) * 1.8, (Math.random() - 0.5) * 1.8, (Math.random() - 0.5) * 1.2);
+      chip.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+      chip.userData.vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.02,
+        Math.random() * 0.015,
+        (Math.random() - 0.5) * 0.02
+      );
+      crackGroup.add(chip);
+    }
+  }
+  squishRoot.add(crackGroup);
+}
+
+function mountSpec(spec) {
+  clearSquish();
+  currentSpec = spec;
+  phys = MATERIALS[spec.material];
+  permanentDeform = 0;
+  crackLevel = 0;
+  shattered = false;
+  tipShown = false;
+  crackLines = [];
+
+  const mat = makeMaterial(spec);
+  const obj = buildShape(spec, mat);
+  squishRoot = new THREE.Group();
+  squishRoot.add(obj);
+
+  const box = new THREE.Box3().setFromObject(squishRoot);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const s = 1.85 / maxDim;
+  squishRoot.scale.setScalar(s);
+  baseScale.set(s, s, s);
+  box.setFromObject(squishRoot);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  squishRoot.children[0].position.sub(center.clone().divideScalar(s));
+  scene.add(squishRoot);
+
+  squishAmount = 0;
+  squishVel = 0;
+  rotateVelX = 0.002;
+  rotateVelY = 0.007;
+  pressActive = false;
+  holdCounted = false;
+}
+
+function startPlay(spec) {
+  initThree();
+  mountSpec(spec);
+  pinchCount = 0;
+  sqCountEl.textContent = '捏了 0 下';
+  playName.textContent = spec.name;
+  feelToast.classList.remove('show');
+  try { localStorage.setItem('daqian-nieni-fav', spec.id); } catch (_) {}
+  playing = true;
+  show(playScreen);
+  if (!animId) loop();
+}
+
+function resetCurrent() {
+  if (!currentSpec || !playing) return;
+  const rotY = squishRoot ? squishRoot.rotation.y : 0;
+  const rotX = squishRoot ? squishRoot.rotation.x : 0;
+  mountSpec(currentSpec);
+  if (squishRoot) {
+    squishRoot.rotation.y = rotY;
+    squishRoot.rotation.x = rotX;
+  }
+  toastFeel('已重置，完好如初');
+  try { if (navigator.vibrate) navigator.vibrate(8); } catch (_) {}
+}
+
+function stopPlay() {
+  playing = false;
+  pressActive = false;
+  clearSquish();
+  currentSpec = null;
+  phys = null;
+}
+
+function getLocalPoint(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top, w: rect.width, h: rect.height };
+}
+
+function onPointerDown(e) {
+  if (!playing) return;
+  e.preventDefault();
+  try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
+  pointerDown = true;
+  moved = false;
+  holdCounted = false;
+  pressStart = performance.now();
+  const p = getLocalPoint(e);
+  lastX = p.x; lastY = p.y;
+  lastClientX = e.clientX; lastClientY = e.clientY;
+}
+
+function onPointerMove(e) {
+  if (!playing || !pointerDown) return;
+  e.preventDefault();
+  const p = getLocalPoint(e);
+  const dx = p.x - lastX;
+  const dy = p.y - lastY;
+  if (Math.abs(dx) + Math.abs(dy) > 8) {
+    if (!moved && pressActive) {
+      // cancel hold if starting to drag
+      pressActive = false;
+    }
+    moved = true;
+  }
+  if (moved) {
+    pressActive = false;
+    rotateVelY = dx * 0.008;
+    rotateVelX = dy * 0.008;
+    if (squishRoot) {
+      squishRoot.rotation.y += dx * 0.008;
+      squishRoot.rotation.x += dy * 0.008;
+      squishRoot.rotation.x = Math.max(-1.1, Math.min(1.1, squishRoot.rotation.x));
+    }
+  }
+  lastX = p.x; lastY = p.y;
+  lastClientX = e.clientX; lastClientY = e.clientY;
+}
+
+function spawnRipple(clientX, clientY) {
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  r.style.left = clientX + 'px';
+  r.style.top = clientY + 'px';
+  playScreen.appendChild(r);
+  setTimeout(() => r.remove(), 600);
+}
+
+function countPinch() {
+  pinchCount++;
+  sqCountEl.textContent = `捏了 ${pinchCount} 下`;
+}
+
+function applyCrack(intensity) {
+  if (!phys || phys.crackRate <= 0) return;
+  const before = crackLevel;
+  crackLevel = Math.min(phys.crackMax, crackLevel + phys.crackRate * intensity);
+  if (phys.shatter && crackLevel >= 0.85 && !shattered) {
+    shattered = true;
+    toastFeel('咔嚓——碎了！点重置恢复');
+    try { if (navigator.vibrate) navigator.vibrate([18, 40, 30]); } catch (_) {}
+  } else if (crackLevel > before + 0.05 && crackLevel > 0.15) {
+    if (!tipShown) {
+      tipShown = true;
+      toastFeel(phys.tip);
+    }
+    try { if (navigator.vibrate) navigator.vibrate(phys.shatter ? 20 : 10); } catch (_) {}
+  }
+  rebuildCracks();
+}
+
+function beginSquish(impulse, fromHold) {
+  if (shattered && phys && phys.shatter) {
+    // still allow tiny chip shake
+    squishVel += 0.08;
+    applyCrack(0.15);
+    return;
+  }
+  pressActive = true;
+  if (!fromHold || !holdCounted) {
+    countPinch();
+    if (fromHold) holdCounted = true;
+  }
+  squishVel += impulse;
+  squishAmount = Math.min(1, squishAmount + impulse * 0.55);
+  // permanent materials accumulate on each press
+  if (phys && phys.permanent > 0) {
+    permanentDeform = Math.min(phys.maxSquash * 0.95, permanentDeform + phys.permanent * 0.08 * (0.5 + impulse));
+  }
+  applyCrack(impulse);
+  spawnRipple(lastClientX, lastClientY);
+  try { if (navigator.vibrate) navigator.vibrate(phys && phys.shatter ? 16 : 11); } catch (_) {}
+  if (!tipShown && phys && phys.crackRate === 0 && pinchCount >= 2) {
+    tipShown = true;
+    toastFeel(phys.tip);
+  }
+}
+
+function onPointerUp(e) {
+  if (!playing || !pointerDown) return;
+  e.preventDefault();
+  const wasHold = pressActive && !moved;
+  pointerDown = false;
+  const held = performance.now() - pressStart;
+
+  if (!moved) {
+    if (!wasHold && held < 140) {
+      // quick tap impulse
+      beginSquish(0.65, false);
+      // brief press then spring
+      setTimeout(() => { if (!pointerDown) pressActive = false; }, 70);
+    } else {
+      // releasing a hold
+      pressActive = false;
+      if (phys && phys.bounceOvershoot > 1 && squishAmount > 0.2) {
+        squishVel -= 0.35 * phys.bounceOvershoot; // kick rebound
+      }
+      if (phys && !tipShown && held > 200) {
+        tipShown = true;
+        toastFeel(phys.tip);
+      }
+    }
+  } else {
+    pressActive = false;
+  }
+  holdCounted = false;
+}
+
+function loop() {
+  animId = requestAnimationFrame(loop);
+  idleT += 0.016;
+  const dt = 0.016;
+
+  if (playing && squishRoot && phys) {
+    if (!pointerDown) {
+      squishRoot.rotation.y += rotateVelY;
+      squishRoot.rotation.x += rotateVelX;
+      rotateVelY *= 0.95;
+      rotateVelX *= 0.95;
+      if (Math.abs(rotateVelY) < 0.0008) rotateVelY = 0.0035;
+    }
+
+    // enter hold-squish after short dwell without move
+    if (pointerDown && !moved && !pressActive && performance.now() - pressStart > 90) {
+      beginSquish(0.45, true);
+    }
+
+    const target = pressActive
+      ? 1
+      : (permanentDeform / Math.max(0.001, phys.maxSquash));
+    // map permanent to 0..1 space relative to maxSquash later
+    const targetAmt = pressActive ? 1 : Math.min(1, permanentDeform / Math.max(phys.maxSquash, 0.01));
+    const stiff = pressActive ? phys.holdStiffness : phys.releaseStiffness;
+    const force = (targetAmt - squishAmount) * stiff * dt;
+    squishVel = (squishVel + force) * phys.damping;
+    // overshoot bounce on waterball/rubber
+    if (!pressActive && phys.bounceOvershoot > 1 && squishAmount < -0.02) {
+      squishVel *= 0.98;
+    }
+    squishAmount += squishVel;
+    const minA = pressActive ? 0 : -0.2 * (phys.bounceOvershoot - 0.5);
+    squishAmount = Math.max(minA, Math.min(1.2, squishAmount));
+    if (!pressActive && Math.abs(squishAmount - targetAmt) < 0.003 && Math.abs(squishVel) < 0.003) {
+      squishAmount = targetAmt;
+      squishVel = 0;
+    }
+
+    const k = Math.max(0, squishAmount);
+    const compress = 1 - phys.maxSquash * k;
+    const expand = 1 + phys.expand * k;
+    const wob = Math.sin(idleT * (2.0 + phys.wobbleAmp * 40)) * phys.wobbleAmp * (1 - k * 0.5);
+    const breath = 1 + Math.sin(idleT * 1.35) * 0.016 * (1 - k) * (currentSpec.material === 'cotton' ? 1.4 : 1);
+    // cotton floats a bit higher
+    const floatY = (currentSpec.material === 'cotton' ? 0.08 : 0.04) * Math.sin(idleT * 1.1) * (1 - k * 0.5);
+
+    // glass shattered: flatten + scatter chips
+    let sx = baseScale.x * expand * (breath || 1) * (1 + wob);
+    let sy = baseScale.y * compress * (breath || 1);
+    let sz = baseScale.z * expand * (breath || 1) * (1 - wob * 0.5);
+    if (shattered) {
+      sy *= 0.55;
+      sx *= 1.15;
+      sz *= 1.15;
+    }
+
+    squishRoot.scale.set(sx, sy, sz);
+    squishRoot.position.z = -0.12 * k;
+    squishRoot.position.y = floatY;
+
+    // ice cream: sink flatter with permanent
+    if (currentSpec.material === 'icecream' || currentSpec.material === 'clay') {
+      squishRoot.position.y -= permanentDeform * 0.35;
+    }
+
+    squishRoot.traverse((o) => {
+      if (o.material && o.material.emissiveIntensity !== undefined) {
+        o.material.emissiveIntensity = 0.22 + 0.4 * k + (shattered ? 0.3 : 0);
+      }
+    });
+
+    // animate shatter chips
+    if (crackGroup && shattered) {
+      crackGroup.children.forEach((ch) => {
+        if (ch.userData.vel) {
+          ch.position.add(ch.userData.vel);
+          ch.userData.vel.y -= 0.0008;
+          ch.rotation.x += 0.04;
+          ch.rotation.y += 0.03;
+        }
+      });
+    }
+  }
+
+  if (renderer && scene && camera) renderer.render(scene, camera);
+}
+
+initThree();
+loop();
+
+try {
+  const fav = localStorage.getItem('daqian-nieni-fav');
+  if (fav) {
+    const found = SQUISHIES.find(s => s.id === fav);
+    if (found) {
+      const h = document.querySelector('#start-screen .hint');
+      if (h) h.innerHTML = `上次选过「${found.name}」· 手感还记得吗？<br>外表差不多，捏了才知道`;
+    }
+  }
+} catch (_) {}
+</script>
+</body>
+</html>
