@@ -21,7 +21,7 @@
     -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
-    touch-action: none;
+    touch-action: manipulation;
     color: #f5f0ff;
   }
   .screen {
@@ -33,9 +33,10 @@
       max(16px, env(safe-area-inset-right))
       max(20px, env(safe-area-inset-bottom))
       max(16px, env(safe-area-inset-left));
-    z-index: 10;
+    z-index: 20;
     background: radial-gradient(ellipse at 50% 20%, #1a1430 0%, #0c0a14 55%, #08060f 100%);
     transition: opacity 0.28s ease, visibility 0.28s;
+    pointer-events: auto;
   }
   .screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
   .logo {
@@ -133,6 +134,9 @@
     padding: 0.2rem;
     margin-bottom: 0.8rem;
     touch-action: pan-y;
+    pointer-events: auto;
+    position: relative;
+    z-index: 2;
   }
   .pick-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
   .pick-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
@@ -148,7 +152,13 @@
     gap: 0.45rem;
     transition: transform 0.12s, border-color 0.15s;
     touch-action: manipulation;
+    pointer-events: auto;
+    -webkit-user-select: none;
+    user-select: none;
+    position: relative;
+    z-index: 1;
   }
+  .card * { pointer-events: none; }
   .card:active { transform: scale(0.95); }
   .card-blob {
     width: 52px; height: 52px;
@@ -260,11 +270,16 @@
     position: fixed; inset: 0;
     z-index: 1;
     background: radial-gradient(ellipse at 50% 40%, #1e1835 0%, #0c0a14 70%);
+    pointer-events: none;
+  }
+  #canvas-wrap.playing {
+    pointer-events: auto;
   }
   #canvas-wrap canvas {
     display: block;
     width: 100%; height: 100%;
     touch-action: none;
+    pointer-events: inherit;
   }
   .ripple {
     position: absolute;
@@ -553,13 +568,61 @@ function openPick(n) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'card';
+    b.dataset.id = s.id;
     // NO material / feel text on cards
     b.innerHTML = `<div class="card-blob ${s.cardClass}" style="background:${s.color};color:${s.color}"></div><div class="card-name">${s.name}</div>`;
-    b.addEventListener('click', () => startPlay(s));
     pickGrid.appendChild(b);
   });
   show(pickScreen);
 }
+
+let pickLockUntil = 0;
+function pickCardById(id) {
+  const now = performance.now();
+  if (now < pickLockUntil) return;
+  const spec = currentOptions.find((s) => s.id === id) || SQUISHIES.find((s) => s.id === id);
+  if (!spec) return;
+  pickLockUntil = now + 450;
+  startPlay(spec);
+}
+
+// Delegated handlers: pointerup (ignore if moved >10px) + click for desktop/Safari
+let pickArmedId = null;
+let pickDownX = 0, pickDownY = 0, pickMoved = false;
+pickGrid.addEventListener('pointerdown', (e) => {
+  const card = e.target.closest('.card');
+  pickArmedId = card ? card.dataset.id : null;
+  pickDownX = e.clientX;
+  pickDownY = e.clientY;
+  pickMoved = false;
+}, { passive: true });
+pickGrid.addEventListener('pointermove', (e) => {
+  if (!pickArmedId) return;
+  if (Math.abs(e.clientX - pickDownX) + Math.abs(e.clientY - pickDownY) > 10) {
+    pickMoved = true;
+  }
+}, { passive: true });
+pickGrid.addEventListener('pointercancel', () => {
+  pickArmedId = null;
+  pickMoved = false;
+}, { passive: true });
+pickGrid.addEventListener('pointerup', (e) => {
+  const card = e.target.closest('.card');
+  const id = pickArmedId;
+  const wasMoved = pickMoved;
+  pickArmedId = null;
+  pickMoved = false;
+  if (!card || !id || card.dataset.id !== id || wasMoved) return;
+  if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+    e.preventDefault();
+    pickCardById(id);
+  }
+});
+pickGrid.addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  pickCardById(card.dataset.id);
+});
 
 function toastFeel(text) {
   feelToast.textContent = text;
@@ -640,34 +703,27 @@ function onResize() {
 }
 
 function makeMaterial(spec) {
-  if (spec.jellyLook) {
-    return new THREE.MeshPhysicalMaterial({
+  // MeshStandardMaterial is more reliable on mobile GPUs than Physical+transmission
+  const glossy = spec.material === 'glass' || spec.material === 'waterball' || spec.jellyLook;
+  const soft = spec.material === 'cotton' || spec.material === 'slime';
+  try {
+    return new THREE.MeshStandardMaterial({
       color: spec.color,
       emissive: spec.emissive,
-      emissiveIntensity: 0.25,
-      roughness: 0.18,
-      metalness: 0.05,
-      transmission: 0.32,
-      thickness: 0.8,
-      clearcoat: 0.55,
-      clearcoatRoughness: 0.25,
-      transparent: true,
-      opacity: 0.92
+      emissiveIntensity: 0.22,
+      roughness: glossy ? 0.18 : (soft ? 0.78 : 0.4),
+      metalness: glossy ? 0.12 : 0.02,
+      transparent: !!spec.jellyLook,
+      opacity: spec.jellyLook ? 0.9 : 1
+    });
+  } catch (err) {
+    console.warn('makeMaterial fallback', err);
+    return new THREE.MeshLambertMaterial({
+      color: spec.color,
+      emissive: spec.emissive,
+      emissiveIntensity: 0.2
     });
   }
-  const glossy = spec.material === 'glass' || spec.material === 'waterball';
-  return new THREE.MeshPhysicalMaterial({
-    color: spec.color,
-    emissive: spec.emissive,
-    emissiveIntensity: 0.22,
-    roughness: glossy ? 0.12 : (spec.material === 'cotton' ? 0.75 : 0.35),
-    metalness: glossy ? 0.15 : 0.02,
-    clearcoat: glossy ? 0.9 : 0.55,
-    clearcoatRoughness: glossy ? 0.08 : 0.3,
-    sheen: spec.material === 'cotton' ? 0.6 : 0.35,
-    sheenRoughness: 0.5,
-    sheenColor: new THREE.Color(spec.color)
-  });
 }
 
 function buildShape(spec, mat) {
@@ -850,7 +906,6 @@ function mountSpec(spec) {
   crackLevel = 0;
   shattered = false;
   tipShown = false;
-  crackLines = [];
 
   const mat = makeMaterial(spec);
   const obj = buildShape(spec, mat);
@@ -878,35 +933,53 @@ function mountSpec(spec) {
   holdCounted = false;
 }
 
+function setCanvasInteractive(on) {
+  if (wrap) wrap.classList.toggle('playing', !!on);
+}
+
 function startPlay(spec) {
-  initThree();
-  mountSpec(spec);
+  currentSpec = spec;
   pinchCount = 0;
   sqCountEl.textContent = '捏了 0 下';
   playName.textContent = spec.name;
   feelToast.classList.remove('show');
   try { localStorage.setItem('daqian-nieni-fav', spec.id); } catch (_) {}
+  // Always enter play UI first so a tap never feels dead
   playing = true;
+  setCanvasInteractive(true);
   show(playScreen);
-  if (!animId) loop();
+  try {
+    initThree();
+    mountSpec(spec);
+    if (!animId) loop();
+  } catch (err) {
+    console.error('startPlay 3D failed', err);
+    toastFeel('3D 加载失败，请再点换一个试试');
+  }
 }
 
 function resetCurrent() {
   if (!currentSpec || !playing) return;
   const rotY = squishRoot ? squishRoot.rotation.y : 0;
   const rotX = squishRoot ? squishRoot.rotation.x : 0;
-  mountSpec(currentSpec);
-  if (squishRoot) {
-    squishRoot.rotation.y = rotY;
-    squishRoot.rotation.x = rotX;
+  try {
+    mountSpec(currentSpec);
+    if (squishRoot) {
+      squishRoot.rotation.y = rotY;
+      squishRoot.rotation.x = rotX;
+    }
+    toastFeel('已重置，完好如初');
+  } catch (err) {
+    console.error('reset failed', err);
+    toastFeel('重置失败，请换一个');
   }
-  toastFeel('已重置，完好如初');
   try { if (navigator.vibrate) navigator.vibrate(8); } catch (_) {}
 }
 
 function stopPlay() {
   playing = false;
   pressActive = false;
+  setCanvasInteractive(false);
   clearSquish();
   currentSpec = null;
   phys = null;
@@ -1134,8 +1207,8 @@ function loop() {
   if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
-initThree();
-loop();
+// Defer WebGL until first play so canvas cannot steal menu taps on iOS Safari
+// initThree() + loop() run from startPlay
 
 try {
   const fav = localStorage.getItem('daqian-nieni-fav');
